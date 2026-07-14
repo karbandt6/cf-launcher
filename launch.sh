@@ -17,7 +17,7 @@ clear
 
 echo -e "${C_CYAN}${C_BOLD}"
 cat <<'EOF'
-  ____ _____ ____  ___  _   _ _____ _____ 
+  ____ _____ ____  ___  _   _ _____ _____
  / ___|  ___|  _ \/ _ \| | | |_   _| ____|
 | |   | |_  | |_)| | | | | | | | | |  _|
 | |___|  _| |  _ < |_| | |_| | | | | |___
@@ -31,41 +31,36 @@ echo
 
 ARCH=$(uname -m)
 
+
 echo -e "${C_GRAY}╭──────────────────────────────────────────────────╮${C_DEF}"
 echo -e "${C_GRAY}│${C_DEF} 🖥️  System Arch  : ${C_BOLD}${ARCH}${C_DEF}"
 
 
-# Check cloudflared
+# Install cloudflared jika belum ada
 if command -v cloudflared >/dev/null 2>&1; then
 
     CF_VER=$(cloudflared --version | awk '{print $3}')
-
     echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${C_GREEN}v${CF_VER}${C_DEF}"
 
 else
 
-    echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${C_YELLOW}Installing...${C_DEF}"
+    echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${YELLOW}Installing...${C_DEF}"
 
 
     case "$ARCH" in
-
         x86_64|amd64)
             PKG="cloudflared-linux-amd64.deb"
         ;;
-
         aarch64|arm64)
             PKG="cloudflared-linux-arm64.deb"
         ;;
-
         armv7l|armhf)
             PKG="cloudflared-linux-arm.deb"
         ;;
-
         *)
             echo -e "${C_RED}Unsupported architecture${C_DEF}"
             exit 1
         ;;
-
     esac
 
 
@@ -75,9 +70,8 @@ else
     >/dev/null 2>&1
 
 
-    dpkg -i /tmp/cloudflared.deb \
-    >/dev/null 2>&1 || apt-get install -f -y \
-    >/dev/null 2>&1
+    dpkg -i /tmp/cloudflared.deb >/dev/null 2>&1 || \
+    apt-get install -f -y >/dev/null 2>&1
 
 
     rm -f /tmp/cloudflared.deb
@@ -110,30 +104,24 @@ echo -e "${C_GREEN}${C_BOLD}✅ Tunnel is live!${C_DEF}"
 echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
 
 
-# Jalankan tunnel sementara untuk ambil URL
-URL=$(cloudflared tunnel \
+# Tunnel satu proses
+cloudflared tunnel \
 --no-autoupdate \
 --loglevel error \
---url "http://127.0.0.1:$PORT" 2>&1 | \
-grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' | head -1)
+--url "http://127.0.0.1:$PORT" 2>&1 | while read -r line
+do
+
+    URL=$(echo "$line" | grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' | head -1)
 
 
-if [ -z "$URL" ]; then
-    echo -e "${C_RED}❌ Failed get tunnel URL${C_DEF}"
-    exit 1
-fi
+    if [ -n "$URL" ]; then
 
+        echo
+        echo -e "🖥️  Dashboard : ${C_CYAN}${URL}${C_DEF}"
+        echo -e "⚡ API Base  : ${C_CYAN}${URL}/v1${C_DEF}"
+        echo
+        echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
 
-echo
-echo -e "🖥️  Dashboard : ${C_CYAN}${URL}${C_DEF}"
-echo -e "⚡ API Base  : ${C_CYAN}${URL}/v1${C_DEF}"
-echo
-echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
+    fi
 
-
-# Jalankan tunnel utama silent
-exec cloudflared tunnel \
---no-autoupdate \
---loglevel fatal \
---url "http://127.0.0.1:$PORT" \
->/dev/null 2>&1
+done
