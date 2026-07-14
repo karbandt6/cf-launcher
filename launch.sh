@@ -31,12 +31,11 @@ echo
 
 ARCH=$(uname -m)
 
-
 echo -e "${C_GRAY}╭──────────────────────────────────────────────────╮${C_DEF}"
 echo -e "${C_GRAY}│${C_DEF} 🖥️  System Arch  : ${C_BOLD}${ARCH}${C_DEF}"
 
 
-# Install cloudflared jika belum ada
+# Cek cloudflared
 if command -v cloudflared >/dev/null 2>&1; then
 
     CF_VER=$(cloudflared --version | awk '{print $3}')
@@ -44,23 +43,27 @@ if command -v cloudflared >/dev/null 2>&1; then
 
 else
 
-    echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${YELLOW}Installing...${C_DEF}"
-
+    echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${C_YELLOW}Installing...${C_DEF}"
 
     case "$ARCH" in
+
         x86_64|amd64)
             PKG="cloudflared-linux-amd64.deb"
         ;;
+
         aarch64|arm64)
             PKG="cloudflared-linux-arm64.deb"
         ;;
+
         armv7l|armhf)
             PKG="cloudflared-linux-arm.deb"
         ;;
+
         *)
             echo -e "${C_RED}Unsupported architecture${C_DEF}"
             exit 1
         ;;
+
     esac
 
 
@@ -100,28 +103,71 @@ done
 echo
 
 
-echo -e "${C_GREEN}${C_BOLD}✅ Tunnel is live!${C_DEF}"
+echo -e "${C_GREEN}${C_BOLD}✅ Tunnel is starting...${C_DEF}"
 echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
 
 
-# Tunnel satu proses
+# Log disimpan diam-diam
+TMPLOG=$(mktemp)
+
+
 cloudflared tunnel \
 --no-autoupdate \
---loglevel error \
---url "http://127.0.0.1:$PORT" 2>&1 | while read -r line
+--url "http://127.0.0.1:$PORT" \
+--logfile "$TMPLOG" \
+--loglevel info &
+
+
+CF_PID=$!
+
+
+echo -ne "${C_YELLOW}⚡ Getting tunnel URL ${C_DEF}"
+
+
+URL=""
+
+for i in {1..30}
 do
 
-    URL=$(echo "$line" | grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' | head -1)
-
+    URL=$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' "$TMPLOG" | head -1 || true)
 
     if [ -n "$URL" ]; then
-
-        echo
-        echo -e "🖥️  Dashboard : ${C_CYAN}${URL}${C_DEF}"
-        echo -e "⚡ API Base  : ${C_CYAN}${URL}/v1${C_DEF}"
-        echo
-        echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
-
+        break
     fi
 
+    echo -ne "."
+    sleep 1
+
 done
+
+
+if [ -z "$URL" ]; then
+
+    echo
+    echo -e "${C_RED}❌ Failed get tunnel URL${C_DEF}"
+
+    kill $CF_PID 2>/dev/null || true
+    rm -f "$TMPLOG"
+
+    exit 1
+
+fi
+
+
+echo
+echo
+
+echo -e "${C_GREEN}${C_BOLD}✅ Tunnel is live!${C_DEF}"
+echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
+
+echo -e "🖥️  Dashboard : ${C_CYAN}${URL}${C_DEF}"
+echo -e "⚡ API Base  : ${C_CYAN}${URL}/v1${C_DEF}"
+
+echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
+
+
+rm -f "$TMPLOG"
+
+
+# biarkan tunnel berjalan
+wait $CF_PID
