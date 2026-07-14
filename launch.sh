@@ -31,19 +31,22 @@ echo
 
 ARCH=$(uname -m)
 
+
 echo -e "${C_GRAY}╭──────────────────────────────────────────────────╮${C_DEF}"
 echo -e "${C_GRAY}│${C_DEF} 🖥️  System Arch  : ${C_BOLD}${ARCH}${C_DEF}"
 
 
-# Cek cloudflared
+# cek cloudflared
 if command -v cloudflared >/dev/null 2>&1; then
 
     CF_VER=$(cloudflared --version | awk '{print $3}')
+
     echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${C_GREEN}v${CF_VER}${C_DEF}"
 
 else
 
     echo -e "${C_GRAY}│${C_DEF} ☁️  Cloudflared  : ${C_YELLOW}Installing...${C_DEF}"
+
 
     case "$ARCH" in
 
@@ -96,7 +99,7 @@ echo -ne "${C_YELLOW}⚡ Initializing Secure Tunnel ${C_DEF}"
 
 for i in 1 2 3
 do
-    echo -ne "${C_YELLOW}.${C_DEF}"
+    echo -ne "."
     sleep 0.3
 done
 
@@ -107,15 +110,17 @@ echo -e "${C_GREEN}${C_BOLD}✅ Tunnel is starting...${C_DEF}"
 echo -e "${C_GRAY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_DEF}"
 
 
-# Log disimpan diam-diam
+# logfile sementara
 TMPLOG=$(mktemp)
 
 
+# start cloudflared silent
 cloudflared tunnel \
 --no-autoupdate \
 --url "http://127.0.0.1:$PORT" \
 --logfile "$TMPLOG" \
---loglevel info &
+--loglevel info \
+>/dev/null 2>&1 &
 
 
 CF_PID=$!
@@ -131,9 +136,11 @@ do
 
     URL=$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' "$TMPLOG" | head -1 || true)
 
+
     if [ -n "$URL" ]; then
         break
     fi
+
 
     echo -ne "."
     sleep 1
